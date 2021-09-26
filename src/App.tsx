@@ -22,7 +22,7 @@ import {
 import {
   Prices,
   Ticker,
-  INTERVAL,
+  // INTERVAL,
   FREQUENCY,
   RawTickerData,
   TIME_SERIES_FIELD,
@@ -53,6 +53,24 @@ const frequencyTimeSeriesInfo = {
     field: TIME_SERIES_FIELD.MONTHLY,
   },
 };
+
+function formatDateByFrequency(date: string, frequency: FREQUENCY) {
+  let formatString;
+  switch (frequency) {
+    case FREQUENCY.ONE_YEAR:
+      formatString = 'MMM YYYY';
+      break;
+    case FREQUENCY.ONE_MONTH:
+    default:
+    case FREQUENCY.ONE_WEEK:
+      formatString = 'DD MMM';
+    // break;
+    // default:
+    // case FREQUENCY.ONE_DAY:
+    //   formatString = 'h:mm A';
+  }
+  return dayjs(date).format(formatString);
+}
 const App: React.FC = () => {
   const [frequency, setFrequency] = React.useState<FREQUENCY>(
     // FREQUENCY.ONE_DAY
@@ -67,23 +85,6 @@ const App: React.FC = () => {
     { label: string; value: string }[]
   >([]);
 
-  function formatDateByFrequency(date: string, frequency: FREQUENCY) {
-    let formatString;
-    switch (frequency) {
-      case FREQUENCY.ONE_YEAR:
-        formatString = 'MMM YYYY';
-        break;
-      case FREQUENCY.ONE_MONTH:
-      default:
-      case FREQUENCY.ONE_WEEK:
-        formatString = 'DD MMM';
-      // break;
-      // default:
-      // case FREQUENCY.ONE_DAY:
-      //   formatString = 'h:mm A';
-    }
-    return dayjs(date).format(formatString);
-  }
   const filterDataByFrequency = React.useCallback(
     (data: [string, Prices][]) => {
       const sortedData = [...data].sort(([firstDate], [secondDate]) =>
@@ -268,7 +269,7 @@ const App: React.FC = () => {
       } else {
         notification.error({
           message: 'Operation unsuccessful',
-          description: `Cannot find "${symbol}" in the database.`,
+          description: `Cannot find "${symbol}"`,
         });
       }
     }
@@ -282,52 +283,6 @@ const App: React.FC = () => {
       description: `We have successfully removed "${symbol}" from your watch list.`,
     });
   }
-  const columns: ColumnsType<Ticker> = [
-    {
-      dataIndex: 'symbol',
-      title: 'Ticker',
-      width: 120,
-    },
-    {
-      dataIndex: 'lastUpdate',
-      title: 'Last Update',
-      width: 200,
-      render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
-    },
-    {
-      dataIndex: 'action',
-      title: 'Action',
-      align: 'center',
-      width: 80,
-      render: (_text: string, { symbol }: Ticker) => (
-        <DeleteOutlined
-          className={styles.delete}
-          onClick={() => removeTicker(symbol)}
-        />
-      ),
-    },
-  ];
-  const lineConfig: LineOptions = React.useMemo(
-    () => ({
-      data: dataSource.reduce(
-        (chartData, { data, symbol }) =>
-          chartData.concat(data.map((dataInfo) => ({ ...dataInfo, symbol }))),
-        [] as {
-          timestamp: string;
-          price: number;
-          symbol: string;
-        }[]
-      ),
-      xField: 'timestamp',
-      yField: 'price',
-      seriesField: 'symbol',
-      legend: {
-        position: 'bottom',
-      },
-      // yAxis: { title: { text: 'Price' } },
-    }),
-    [dataSource]
-  );
   const searchTicker = React.useMemo(
     () =>
       debounce((value: string) => {
@@ -379,6 +334,52 @@ const App: React.FC = () => {
       }, 500),
     []
   );
+  const columns: ColumnsType<Ticker> = [
+    {
+      dataIndex: 'symbol',
+      title: 'Ticker',
+      width: 120,
+    },
+    {
+      dataIndex: 'lastUpdate',
+      title: 'Last Update',
+      width: 200,
+      render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
+    },
+    {
+      dataIndex: 'action',
+      title: 'Action',
+      align: 'center',
+      width: 80,
+      render: (_text: string, { symbol }: Ticker) => (
+        <DeleteOutlined
+          className={styles.delete}
+          onClick={() => removeTicker(symbol)}
+        />
+      ),
+    },
+  ];
+  const lineConfig: LineOptions = React.useMemo(
+    () => ({
+      data: dataSource.reduce(
+        (chartData, { data, symbol }) =>
+          chartData.concat(data.map((dataInfo) => ({ ...dataInfo, symbol }))),
+        [] as {
+          timestamp: string;
+          price: number;
+          symbol: string;
+        }[]
+      ),
+      xField: 'timestamp',
+      yField: 'price',
+      seriesField: 'symbol',
+      legend: {
+        position: 'bottom',
+      },
+      // yAxis: { title: { text: 'Price' } },
+    }),
+    [dataSource]
+  );
   return (
     <div className={styles.App}>
       <div className={styles.header}>
@@ -420,8 +421,8 @@ const App: React.FC = () => {
           )}
           <div className={styles['body__content__watch-list']}>
             <AutoComplete
-              onSearch={(value: string) => searchTicker(value)}
               options={suggestions}
+              onSearch={(value: string) => searchTicker(value)}
               notFoundContent={
                 isSearchLoading ? 'Loading...' : 'No Match Found'
               }
@@ -462,7 +463,7 @@ const App: React.FC = () => {
       </div>
       <div className={styles.signature}>
         Designed by Leslie Ho Zong Hong on 25 Sep, 2021. Powered by{' '}
-        <a href="www.alphavantage.co">www.alphavantage.co</a>
+        <a href="https://www.alphavantage.co">www.alphavantage.co</a>
       </div>
     </div>
   );
