@@ -1,19 +1,24 @@
-Title: BlackRock FE Coding Challenge
-Name: Leslie Ho Zong Hong
-Date of attempt: 26th Sep 2021
+# BlackRock FE Coding Challenge
 
-Tools use
+![preview](public/preview.png)
 
-1. NodeJs (15.11.0)
-2. NPM (7.6.2)
-3. React (17.0.1)
-4. TypeScript (4.2.3)
-5. Ant Design (4.13.1)
+## Tools used
 
-Instruction
+| Name       | Version |
+| ---------- | ------- |
+| NodeJs     | 16.3.0  |
+| React      | 17.0.2  |
+| TypeScript | 4.4.3   |
+| Ant Design | 4.16.13 |
+| Lodash     | 4.17.21 |
+| Dayjs      | 1.10.7  |
 
-1. Open the project in editor and navigate to the project root directory
-2. Run "npm install" to install node modules
-3. Run "npm start" to start local host on http://localhost:3000/
+## Installation
 
-Note that there is a limit to the number of API call. Should you encounter the error "'Alpha Vantage API call frequency is limit to 5 calls per minute & 500 calls per day'" - please wait a few seconds before trying again. Otherwise, generate a new api key and replace the existing API_KEY in src/App.tsx
+1. Open the project in a editor and navigate to the project root directory
+2. Run `npm update` to install node modules
+3. Run `npm start` to preview application on http://localhost:3000/
+
+## Important
+
+This application rely on [Alpha Vantage API](https://www.alphavantage.co/documentation/) to fetch real time financial data (see [www.alphavantage.co/support](https://www.alphavantage.co/support/#support)). Public usage is capped at **5 calls per minute and 500 calls per day**. Should you encounter the error - _Alpha Vantage API call frequency is limit to 5 calls per minute & 500 calls per day_, please few for a few minutes before trying again. Should you run out of quota, feel free to replace the existing `API_KEY` in `src/App.tsx` For more information about the API, please check out https://www.alphavantage.co/documentation/

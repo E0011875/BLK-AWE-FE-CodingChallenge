@@ -230,7 +230,7 @@ const App: React.FC = () => {
                     <a href="https://www.alphavantage.co/support/#support">
                       https://www.alphavantage.co/support
                     </a>
-                    . Please wait a few seconds &amp; try again.
+                    . Please wait a few minutes &amp; try again.
                   </div>
                 ),
                 type: 'error',
