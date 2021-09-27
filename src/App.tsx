@@ -20,97 +20,27 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons';
 import {
-  Prices,
   Ticker,
-  // INTERVAL,
+  ChartData,
   FREQUENCY,
+  OptionsType,
   RawTickerData,
-  TIME_SERIES_FIELD,
-  TIME_SERIES_PARAM,
+  RawSearchTicketData,
 } from './typings';
 import debounce from 'lodash/debounce';
+import { filterDataByFrequency } from './utils';
+import {
+  API_KEY,
+  frequencyTimeSeriesInfo,
+  ALPHAVANTAGE_API_PREFIX,
+} from './constants';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import dayjs, { OpUnitType } from 'dayjs';
+import dayjs from 'dayjs';
 
 dayjs.extend(relativeTime);
 
-const API_KEY = '3IU26SL7Y4EAM8BY';
-const frequencyTimeSeriesInfo = {
-  // [FREQUENCY.ONE_DAY]: {
-  //   param: TIME_SERIES_PARAM.INTRADAY,
-  //   field: TIME_SERIES_FIELD.INTRADAY,
-  // },
-  [FREQUENCY.ONE_WEEK]: {
-    param: TIME_SERIES_PARAM.DAILY,
-    field: TIME_SERIES_FIELD.DAILY,
-  },
-  [FREQUENCY.ONE_MONTH]: {
-    param: TIME_SERIES_PARAM.DAILY,
-    field: TIME_SERIES_FIELD.DAILY,
-  },
-  [FREQUENCY.ONE_YEAR]: {
-    param: TIME_SERIES_PARAM.MONTHLY,
-    field: TIME_SERIES_FIELD.MONTHLY,
-  },
-};
-function filterDataByFrequency(data: [string, Prices][], frequency: FREQUENCY) {
-  const sortedData = [...data].sort(([firstDate], [secondDate]) =>
-    dayjs(firstDate).diff(dayjs(secondDate))
-  );
-  const lastTradingDate = sortedData[sortedData.length - 1][0];
-  return sortedData.reduce(
-    (filteredData, [date, prices]) => {
-      let unit: OpUnitType;
-      switch (frequency) {
-        case FREQUENCY.ONE_YEAR:
-          unit = 'year';
-          break;
-        case FREQUENCY.ONE_MONTH:
-          unit = 'month';
-          break;
-        default:
-        case FREQUENCY.ONE_WEEK:
-          unit = 'week';
-        // break;
-        // default:
-        // case FREQUENCY.ONE_DAY:
-        //   unit = 'day';
-      }
-      return filteredData.concat(
-        dayjs(lastTradingDate).isSame(dayjs(date), unit)
-          ? {
-              timestamp: formatDateByFrequency(date, frequency),
-              price: +prices['4. close'],
-            }
-          : []
-      );
-    },
-    [] as {
-      timestamp: string;
-      price: number;
-    }[]
-  );
-}
-function formatDateByFrequency(date: string, frequency: FREQUENCY) {
-  let formatString;
-  switch (frequency) {
-    case FREQUENCY.ONE_YEAR:
-      formatString = 'MMM YYYY';
-      break;
-    case FREQUENCY.ONE_MONTH:
-    default:
-    case FREQUENCY.ONE_WEEK:
-      formatString = 'DD MMM';
-    // break;
-    // default:
-    // case FREQUENCY.ONE_DAY:
-    //   formatString = 'h:mm A';
-  }
-  return dayjs(date).format(formatString);
-}
 const App: React.FC = () => {
   const [frequency, setFrequency] = React.useState<FREQUENCY>(
-    // FREQUENCY.ONE_DAY
     FREQUENCY.ONE_WEEK
   );
   const [dataSource, setDataSource] = React.useState<Ticker[]>([
@@ -122,11 +52,11 @@ const App: React.FC = () => {
     },
   ]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
-  const [isSearchLoading, setIsSearchLoading] = React.useState<boolean>(false);
-  const [alertProps, setAlertProps] = React.useState<AlertProps>();
-  const [suggestions, setSuggestions] = React.useState<
+  const [searchResults, setSearchResults] = React.useState<
     { label: string; value: string }[]
   >([]);
+  const [isSearchLoading, setIsSearchLoading] = React.useState<boolean>(false);
+  const [alertProps, setAlertProps] = React.useState<AlertProps>();
   function fetchTickers(
     symbols: string[],
     retry: React.MouseEventHandler,
@@ -137,7 +67,7 @@ const App: React.FC = () => {
     return Promise.all(
       symbols.map((symbol) =>
         fetch(
-          'https://www.alphavantage.co/query?' +
+          ALPHAVANTAGE_API_PREFIX +
             new URLSearchParams({
               symbol,
               function: frequencyTimeSeriesInfo[frequency].param,
@@ -300,7 +230,7 @@ const App: React.FC = () => {
   const searchTicker = React.useMemo(
     () =>
       debounce((value: string) => {
-        setSuggestions([]);
+        setSearchResults([]);
         setIsSearchLoading(true);
         fetch(
           'https://www.alphavantage.co/query?' +
@@ -314,26 +244,21 @@ const App: React.FC = () => {
             if (response.status === 200) {
               response
                 .json()
-                .then(
-                  ({
-                    bestMatches,
-                  }: {
-                    bestMatches?: Record<string, string>[];
-                  }) =>
-                    setSuggestions(
-                      bestMatches?.reduce((suggestions, match) => {
-                        const symbolEntry = Object.entries(match).find(
-                          ([key]) => key.includes('symbol')
-                        );
-                        if (symbolEntry) {
-                          return suggestions.concat({
-                            label: symbolEntry[1],
-                            value: symbolEntry[1],
-                          });
-                        }
-                        return suggestions;
-                      }, [] as { label: string; value: string }[]) || []
-                    )
+                .then(({ bestMatches }: RawSearchTicketData) =>
+                  setSearchResults(
+                    bestMatches?.reduce((suggestions, match) => {
+                      const symbolEntry = Object.entries(match).find(([key]) =>
+                        key.includes('symbol')
+                      );
+                      if (symbolEntry) {
+                        return suggestions.concat({
+                          label: symbolEntry[1],
+                          value: symbolEntry[1],
+                        });
+                      }
+                      return suggestions;
+                    }, [] as OptionsType[]) || []
+                  )
                 )
                 .finally(() => setIsSearchLoading(false));
             }
@@ -375,11 +300,7 @@ const App: React.FC = () => {
       data: dataSource.reduce(
         (chartData, { data, symbol }) =>
           chartData.concat(data.map((dataInfo) => ({ ...dataInfo, symbol }))),
-        [] as {
-          timestamp: string;
-          price: number;
-          symbol: string;
-        }[]
+        [] as ChartData[]
       ),
       xField: 'timestamp',
       yField: 'price',
@@ -387,7 +308,6 @@ const App: React.FC = () => {
       legend: {
         position: 'bottom',
       },
-      // yAxis: { title: { text: 'Price' } },
     }),
     [dataSource]
   );
@@ -432,7 +352,7 @@ const App: React.FC = () => {
           )}
           <div className={styles['body__content__watch-list']}>
             <AutoComplete
-              options={suggestions}
+              options={searchResults}
               onSearch={(value: string) => searchTicker(value)}
               notFoundContent={
                 isSearchLoading ? 'Loading...' : 'No Match Found'

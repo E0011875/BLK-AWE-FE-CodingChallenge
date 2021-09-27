@@ -76,3 +76,15 @@ export type Ticker = {
     price: number;
   }[];
 };
+export type RawSearchTicketData = {
+  bestMatches: Record<string, string>[];
+  'Error Message'?: string;
+  Information?: string;
+  Note?: string;
+};
+export type ChartData = {
+  timestamp: string;
+  price: number;
+  symbol: string;
+};
+export type OptionsType = { label: string; value: string };
