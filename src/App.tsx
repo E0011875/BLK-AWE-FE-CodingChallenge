@@ -15,9 +15,9 @@ import { Line } from '@ant-design/charts';
 import { LineOptions } from '@antv/g2plot';
 import { ColumnsType } from 'antd/lib/table';
 import {
+  PlusOutlined,
   DeleteOutlined,
   LoadingOutlined,
-  PlusOutlined,
 } from '@ant-design/icons';
 import {
   Prices,
@@ -267,16 +267,18 @@ const App: React.FC = () => {
   }, [updateDataSource]);
   const addTicker = React.useCallback(
     (symbol: string) => {
-      fetchTickers([symbol], () => addTicker(symbol), frequency).then(
-        (fetchedDataSource) => {
-          if (fetchedDataSource) {
-            setDataSource((currentDataSource) => [
-              ...fetchedDataSource,
-              ...currentDataSource,
-            ]);
+      if (symbol) {
+        fetchTickers([symbol], () => addTicker(symbol), frequency).then(
+          (fetchedDataSource) => {
+            if (fetchedDataSource) {
+              setDataSource((currentDataSource) => [
+                ...fetchedDataSource,
+                ...currentDataSource,
+              ]);
+            }
           }
-        }
-      );
+        );
+      }
     },
     [frequency]
   );
@@ -312,65 +314,62 @@ const App: React.FC = () => {
             if (response.status === 200) {
               response
                 .json()
-                .then((result) =>
-                  setSuggestions(
-                    result.bestMatches?.reduce(
-                      (
-                        suggestions: { label: string; value: string }[],
-                        match: Record<string, string>
-                      ) => {
+                .then(
+                  ({
+                    bestMatches,
+                  }: {
+                    bestMatches?: Record<string, string>[];
+                  }) =>
+                    setSuggestions(
+                      bestMatches?.reduce((suggestions, match) => {
                         const symbolEntry = Object.entries(match).find(
                           ([key]) => key.includes('symbol')
                         );
-                        return suggestions.concat(
-                          symbolEntry
-                            ? {
-                                label: symbolEntry[1],
-                                value: symbolEntry[1],
-                              }
-                            : []
-                        );
-                      },
-                      []
+                        if (symbolEntry) {
+                          return suggestions.concat({
+                            label: symbolEntry[1],
+                            value: symbolEntry[1],
+                          });
+                        }
+                        return suggestions;
+                      }, [] as { label: string; value: string }[]) || []
                     )
-                  )
                 )
-                .catch((error) => console.error(error))
                 .finally(() => setIsSearchLoading(false));
             }
           })
-          .catch((error) => {
-            console.error(error);
-            setIsSearchLoading(false);
-          });
+          .catch(() => setIsSearchLoading(false));
       }, 500),
     []
   );
-  const columns: ColumnsType<Ticker> = [
-    {
-      dataIndex: 'symbol',
-      title: 'Ticker',
-      width: 120,
-    },
-    {
-      dataIndex: 'lastUpdate',
-      title: 'Last Update',
-      width: 200,
-      render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
-    },
-    {
-      dataIndex: 'action',
-      title: 'Action',
-      align: 'center',
-      width: 80,
-      render: (_text: string, { symbol }: Ticker) => (
-        <DeleteOutlined
-          className={styles.delete}
-          onClick={() => removeTicker(symbol)}
-        />
-      ),
-    },
-  ];
+  const columns: ColumnsType<Ticker> = React.useMemo(
+    () => [
+      {
+        dataIndex: 'symbol',
+        title: 'Ticker',
+        width: 120,
+      },
+      {
+        dataIndex: 'lastUpdate',
+        title: 'Last Update',
+        width: 200,
+        render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
+      },
+      {
+        dataIndex: 'action',
+        title: 'Action',
+        align: 'center',
+        width: 80,
+        render: (_text: string, { symbol }: Ticker) => (
+          <DeleteOutlined
+            className={styles.delete}
+            onClick={() => removeTicker(symbol)}
+          />
+        ),
+      },
+    ],
+    [removeTicker]
+  );
   const lineConfig: LineOptions = React.useMemo(
     () => ({
       data: dataSource.reduce(
