@@ -15,6 +15,7 @@ import { Line } from '@ant-design/charts';
 import { LineOptions } from '@antv/g2plot';
 import { ColumnsType } from 'antd/lib/table';
 import {
+  LinkOutlined,
   PlusOutlined,
   DeleteOutlined,
   LoadingOutlined,
@@ -48,6 +49,7 @@ const App: React.FC = () => {
       symbol: 'BLK',
       timeZone: '-',
       lastUpdate: NaN,
+      dataUrl: '',
       data: [],
     },
   ]);
@@ -119,6 +121,7 @@ const App: React.FC = () => {
                     symbol: '',
                     timeZone: '-',
                     lastUpdate: NaN,
+                    dataUrl: '',
                     frequency,
                   }
                 );
@@ -129,6 +132,13 @@ const App: React.FC = () => {
                 }
                 tickers.push({
                   ...metaTickerFields,
+                  dataUrl:
+                    ALPHAVANTAGE_API_PREFIX +
+                    new URLSearchParams({
+                      symbol: symbols[index],
+                      function: frequencyTimeSeriesInfo[frequency].param,
+                      apikey: API_KEY,
+                    }).toString(),
                   data: filterDataByFrequency(
                     Object.entries(
                       rawTickerData[frequencyTimeSeriesInfo[frequency].field] ||
@@ -189,6 +199,13 @@ const App: React.FC = () => {
               fetchedDataSource ||
               currentDataSource.map((ticker) => ({
                 ...ticker,
+                dataUrl:
+                  ALPHAVANTAGE_API_PREFIX +
+                  new URLSearchParams({
+                    symbol: ticker.symbol,
+                    function: frequencyTimeSeriesInfo[frequency].param,
+                    apikey: API_KEY,
+                  }).toString(),
                 frequency,
                 data: [],
               }))
@@ -296,15 +313,26 @@ const App: React.FC = () => {
         render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
       },
       {
-        dataIndex: 'action',
-        title: 'Action',
+        title: 'Actions',
         align: 'center',
-        width: 80,
-        render: (_text: string, { symbol }: Ticker) => (
-          <DeleteOutlined
-            className={styles.delete}
-            onClick={() => removeTicker(symbol)}
-          />
+        width: 100,
+        render: (_text: string, { symbol, dataUrl }: Ticker) => (
+          <div className={styles.actions}>
+            <LinkOutlined
+              className={styles.link}
+              onClick={() => {
+                navigator.clipboard.writeText(dataUrl);
+                notification.info({
+                  message: 'Copied Data URL to Clipboard',
+                  description: `Copied ${symbol} time series url data`,
+                });
+              }}
+            />
+            <DeleteOutlined
+              className={styles.delete}
+              onClick={() => removeTicker(symbol)}
+            />
+          </div>
         ),
       },
     ],

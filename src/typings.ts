@@ -71,6 +71,7 @@ export type Ticker = {
   timeZone: string;
   lastUpdate: number;
   frequency?: FREQUENCY;
+  dataUrl: string;
   data: {
     timestamp: string;
     price: number;
