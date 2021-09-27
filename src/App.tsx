@@ -183,11 +183,16 @@ const App: React.FC = () => {
     });
     if (needToUpdate) {
       fetchTickers(symbols, updateDataSource, frequency).then(
-        (fetchedDataSource) => {
-          if (fetchedDataSource) {
-            setDataSource(fetchedDataSource);
-          }
-        }
+        (fetchedDataSource) =>
+          setDataSource(
+            (currentDataSource) =>
+              fetchedDataSource ||
+              currentDataSource.map((ticker) => ({
+                ...ticker,
+                frequency,
+                data: [],
+              }))
+          )
       );
     }
   }, [dataSource, frequency]);
@@ -198,19 +203,29 @@ const App: React.FC = () => {
   const addTicker = React.useCallback(
     (symbol: string) => {
       if (symbol) {
-        fetchTickers([symbol], () => addTicker(symbol), frequency).then(
-          (fetchedDataSource) => {
-            if (fetchedDataSource) {
-              setDataSource((currentDataSource) => [
-                ...fetchedDataSource,
-                ...currentDataSource,
-              ]);
-            }
-          }
+        const tickerExist = dataSource.some(
+          ({ symbol: tickerSymbol }) => tickerSymbol === symbol
         );
+        if (tickerExist) {
+          notification.error({
+            message: 'Ticker already exist',
+            description: `${symbol} is already added to your watch list.`,
+          });
+        } else {
+          fetchTickers([symbol], () => addTicker(symbol), frequency).then(
+            (fetchedDataSource) => {
+              if (fetchedDataSource) {
+                setDataSource((currentDataSource) => [
+                  ...fetchedDataSource,
+                  ...currentDataSource,
+                ]);
+              }
+            }
+          );
+        }
       }
     },
-    [frequency]
+    [dataSource, frequency]
   );
   const removeTicker = React.useCallback(
     (symbol: string) => {
