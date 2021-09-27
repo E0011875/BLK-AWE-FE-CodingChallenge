@@ -53,7 +53,44 @@ const frequencyTimeSeriesInfo = {
     field: TIME_SERIES_FIELD.MONTHLY,
   },
 };
-
+function filterDataByFrequency(data: [string, Prices][], frequency: FREQUENCY) {
+  const sortedData = [...data].sort(([firstDate], [secondDate]) =>
+    dayjs(firstDate).diff(dayjs(secondDate))
+  );
+  const lastTradingDate = sortedData[sortedData.length - 1][0];
+  return sortedData.reduce(
+    (filteredData, [date, prices]) => {
+      let unit: OpUnitType;
+      switch (frequency) {
+        case FREQUENCY.ONE_YEAR:
+          unit = 'year';
+          break;
+        case FREQUENCY.ONE_MONTH:
+          unit = 'month';
+          break;
+        default:
+        case FREQUENCY.ONE_WEEK:
+          unit = 'week';
+        // break;
+        // default:
+        // case FREQUENCY.ONE_DAY:
+        //   unit = 'day';
+      }
+      return filteredData.concat(
+        dayjs(lastTradingDate).isSame(dayjs(date), unit)
+          ? {
+              timestamp: formatDateByFrequency(date, frequency),
+              price: +prices['4. close'],
+            }
+          : []
+      );
+    },
+    [] as {
+      timestamp: string;
+      price: number;
+    }[]
+  );
+}
 function formatDateByFrequency(date: string, frequency: FREQUENCY) {
   let formatString;
   switch (frequency) {
@@ -76,213 +113,188 @@ const App: React.FC = () => {
     // FREQUENCY.ONE_DAY
     FREQUENCY.ONE_WEEK
   );
-  const [watchList, setWatchList] = React.useState<string[]>(['IBM']);
-  const [dataSource, setDataSource] = React.useState<Ticker[]>([]);
+  const [dataSource, setDataSource] = React.useState<Ticker[]>([
+    {
+      symbol: 'IBM',
+      timeZone: '-',
+      lastUpdate: NaN,
+      data: [],
+    },
+  ]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
   const [isSearchLoading, setIsSearchLoading] = React.useState<boolean>(false);
   const [alertProps, setAlertProps] = React.useState<AlertProps>();
   const [suggestions, setSuggestions] = React.useState<
     { label: string; value: string }[]
   >([]);
-
-  const filterDataByFrequency = React.useCallback(
-    (data: [string, Prices][]) => {
-      const sortedData = [...data].sort(([firstDate], [secondDate]) =>
-        dayjs(firstDate).diff(dayjs(secondDate))
-      );
-      const lastTradingDate = sortedData[sortedData.length - 1][0];
-      return sortedData.reduce(
-        (filteredData, [date, prices]) => {
-          let unit: OpUnitType;
-          switch (frequency) {
-            case FREQUENCY.ONE_YEAR:
-              unit = 'year';
-              break;
-            case FREQUENCY.ONE_MONTH:
-              unit = 'month';
-              break;
-            default:
-            case FREQUENCY.ONE_WEEK:
-              unit = 'week';
-            // break;
-            // default:
-            // case FREQUENCY.ONE_DAY:
-            //   unit = 'day';
+  function fetchTickers(
+    symbols: string[],
+    retry: React.MouseEventHandler,
+    frequency: FREQUENCY
+  ) {
+    setAlertProps(undefined);
+    setIsLoading(true);
+    return Promise.all(
+      symbols.map((symbol) =>
+        fetch(
+          'https://www.alphavantage.co/query?' +
+            new URLSearchParams({
+              symbol,
+              function: frequencyTimeSeriesInfo[frequency].param,
+              apikey: API_KEY,
+            }).toString()
+        )
+      )
+    )
+      .then((responses) => {
+        let failedResponse: Response | undefined;
+        const jsonRequests = responses.map((response) => {
+          if (response.status !== 200) {
+            failedResponse = response;
           }
-          return filteredData.concat(
-            dayjs(lastTradingDate).isSame(dayjs(date), unit)
-              ? {
-                  timestamp: formatDateByFrequency(date, frequency),
-                  price: +prices['4. close'],
+          return response.json();
+        });
+        if (failedResponse) {
+          throw Error(failedResponse.status.toString());
+        }
+        return Promise.all(jsonRequests)
+          .then((allRawTickerData: RawTickerData[]) =>
+            allRawTickerData.reduce((tickers, rawTickerData, index) => {
+              if (rawTickerData['Error Message']) {
+                notification.error({
+                  message: 'Operation Unsuccessful',
+                  description: `Unable to find ${symbols[index]}`,
+                });
+              } else {
+                const metaTickerFields = Object.entries(
+                  rawTickerData['Meta Data'] || {}
+                ).reduce(
+                  (tickerFields, [key, value]) => {
+                    let field;
+                    if (key.includes('Symbol')) {
+                      field = 'symbol';
+                    } else if (key.includes('Time Zone')) {
+                      field = 'timeZone';
+                    } else if (key.includes('Last Refreshed')) {
+                      field = 'lastUpdate';
+                    }
+                    return field
+                      ? {
+                          ...tickerFields,
+                          [field]: value,
+                        }
+                      : tickerFields;
+                  },
+                  {
+                    symbol: '',
+                    timeZone: '-',
+                    lastUpdate: NaN,
+                    frequency,
+                  }
+                );
+                if (!metaTickerFields.symbol) {
+                  throw Error(
+                    'Alpha Vantage API call frequency is limit to 5 calls per minute & 500 calls per day'
+                  );
                 }
-              : []
-          );
-        },
-        [] as {
-          timestamp: string;
-          price: number;
-        }[]
+                tickers.push({
+                  ...metaTickerFields,
+                  data: filterDataByFrequency(
+                    Object.entries(
+                      rawTickerData[frequencyTimeSeriesInfo[frequency].field] ||
+                        {}
+                    ),
+                    frequency
+                  ),
+                });
+              }
+              return tickers;
+            }, [] as Ticker[])
+          )
+          .catch(({ message }) =>
+            setAlertProps({
+              message: (
+                <div>
+                  <b>[Quota Limit]:</b> {message} - see&nbsp;
+                  <a href="https://www.alphavantage.co/support/#support">
+                    https://www.alphavantage.co/support
+                  </a>
+                  . Please wait a few minutes &amp; try again.
+                </div>
+              ),
+              type: 'error',
+              showIcon: true,
+              closable: true,
+              onClose: () => setAlertProps(undefined),
+              action: (
+                <Button size="small" onClick={retry}>
+                  Try Again
+                </Button>
+              ),
+            })
+          )
+          .finally(() => setIsLoading(false));
+      })
+      .catch(({ message }) => {
+        notification.error({
+          message,
+          description: `Error fetching ticker.`,
+        });
+        setIsLoading(false);
+      });
+  }
+  const updateDataSource = React.useCallback(() => {
+    let needToUpdate = false;
+    const symbols = dataSource.map(({ symbol, frequency: tickerFreq }) => {
+      if (tickerFreq !== frequency) {
+        needToUpdate = true;
+      }
+      return symbol;
+    });
+    if (needToUpdate) {
+      fetchTickers(symbols, updateDataSource, frequency).then(
+        (fetchedDataSource) => {
+          if (fetchedDataSource) {
+            setDataSource(fetchedDataSource);
+          }
+        }
+      );
+    }
+  }, [dataSource, frequency]);
+
+  React.useEffect(() => {
+    updateDataSource();
+  }, [updateDataSource]);
+  const addTicker = React.useCallback(
+    (symbol: string) => {
+      fetchTickers([symbol], () => addTicker(symbol), frequency).then(
+        (fetchedDataSource) => {
+          if (fetchedDataSource) {
+            setDataSource((currentDataSource) => [
+              ...fetchedDataSource,
+              ...currentDataSource,
+            ]);
+          }
+        }
       );
     },
     [frequency]
   );
-  React.useEffect(() => {
-    const { missingTickers, validDataSource } = watchList.reduce(
-      ({ missingTickers, validDataSource }, symbol) => {
-        const tickerData = dataSource.find(
-          (ticker) => ticker.symbol === symbol && ticker.frequency === frequency
-        );
-        return {
-          missingTickers: missingTickers.concat(tickerData ? [] : symbol),
-          validDataSource: validDataSource.concat(tickerData ? tickerData : []),
-        };
-      },
-      {
-        missingTickers: [] as string[],
-        validDataSource: [] as Ticker[],
-      }
-    );
-    if (missingTickers.length) {
-      setAlertProps(undefined);
-      setIsLoading(true);
-      const defaultParams = {
-        function: frequencyTimeSeriesInfo[frequency].param,
-        apikey: API_KEY,
-        // ...(frequency === FREQUENCY.ONE_DAY
-        //   ? {
-        //       interval: INTERVAL.SIXTY_MINUTE,
-        //     }
-        //   : {}),
-      };
-      Promise.all(
-        missingTickers.map((symbol) =>
-          fetch(
-            'https://www.alphavantage.co/query?' +
-              new URLSearchParams({ ...defaultParams, symbol }).toString()
-          )
-        )
-      )
-        .then((responses) => {
-          const jsonRequests = responses.reduce((jsonRequests, response) => {
-            if (response.status === 200) {
-              jsonRequests.push(response.json());
-            }
-            return jsonRequests;
-          }, [] as Promise<RawTickerData>[]);
-          Promise.all(jsonRequests)
-            .then((rawData) => {
-              const fetchedDataSource = rawData.reduce(
-                (dataSource, rawTickerData) => {
-                  if (rawTickerData.Information || rawTickerData.Note) {
-                    throw Error(
-                      'Alpha Vantage API call frequency is limit to 5 calls per minute & 500 calls per day'
-                    );
-                  }
-                  const metaTickerFields = Object.entries(
-                    rawTickerData['Meta Data'] || {}
-                  ).reduce(
-                    (tickerFields, [key, value]) => ({
-                      ...tickerFields,
-                      ...(key.includes('Symbol')
-                        ? {
-                            symbol: value,
-                          }
-                        : {}),
-                      ...(key.includes('Time Zone')
-                        ? {
-                            timeZone: value,
-                          }
-                        : {}),
-                      ...(key.includes('Last Refreshed')
-                        ? {
-                            lastUpdate: dayjs(value).valueOf(),
-                          }
-                        : {}),
-                    }),
-                    {
-                      symbol: '',
-                      timeZone: '-',
-                      lastUpdate: NaN,
-                      frequency,
-                    }
-                  );
-                  const tickerData = filterDataByFrequency(
-                    Object.entries(
-                      rawTickerData[frequencyTimeSeriesInfo[frequency].field] ||
-                        {}
-                    )
-                  );
-                  dataSource.push({
-                    ...metaTickerFields,
-                    data: tickerData,
-                  });
-                  return dataSource;
-                },
-                [] as Ticker[]
-              );
-              setDataSource(fetchedDataSource.concat(validDataSource));
-            })
-            .catch(({ message }) => {
-              setDataSource([]);
-              setAlertProps({
-                message: (
-                  <div>
-                    <b>[Quota Limit]:</b> {message} - see&nbsp;
-                    <a href="https://www.alphavantage.co/support/#support">
-                      https://www.alphavantage.co/support
-                    </a>
-                    . Please wait a few minutes &amp; try again.
-                  </div>
-                ),
-                type: 'error',
-                showIcon: true,
-                closable: true,
-                onClose: () => setAlertProps(undefined),
-                action: (
-                  <Button
-                    size="small"
-                    onClick={() => setWatchList([...watchList])} // trigger a re-fetch
-                  >
-                    Try Again
-                  </Button>
-                ),
-              });
-            })
-            .finally(() => setIsLoading(false));
-        })
-        .catch((error) => console.error(error))
-        .finally(() => setIsLoading(false));
-    } else {
-      setDataSource(validDataSource);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frequency, watchList, filterDataByFrequency]);
-
-  function addTicker(symbol: string) {
-    if (symbol) {
-      if (suggestions.some(({ value }) => value === symbol)) {
-        setWatchList((currentWatchList) => [symbol, ...currentWatchList]);
-        notification.success({
-          message: 'Ticker added successfully',
-          description: `We have successfully added "${symbol}" to your watch list.`,
-        });
-      } else {
-        notification.error({
-          message: 'Operation unsuccessful',
-          description: `Cannot find "${symbol}"`,
-        });
-      }
-    }
-  }
-  function removeTicker(symbol: string) {
-    setWatchList((currentWatchList) =>
-      currentWatchList.filter((tickerSymbol) => tickerSymbol !== symbol)
-    );
-    notification.success({
-      message: 'Ticker removed successfully',
-      description: `We have successfully removed "${symbol}" from your watch list.`,
-    });
-  }
+  const removeTicker = React.useCallback(
+    (symbol: string) => {
+      const newDataSource = [...dataSource];
+      const indexToRemove = newDataSource.findIndex(
+        ({ symbol: tickerSymbol }) => tickerSymbol === symbol
+      );
+      newDataSource.splice(indexToRemove, 1);
+      setDataSource(newDataSource);
+      notification.success({
+        message: 'Ticker removed successfully',
+        description: `We have successfully removed "${symbol}" from your watch list.`,
+      });
+    },
+    [dataSource]
+  );
   const searchTicker = React.useMemo(
     () =>
       debounce((value: string) => {

@@ -70,7 +70,7 @@ export type Ticker = {
   symbol: string;
   timeZone: string;
   lastUpdate: number;
-  frequency: FREQUENCY;
+  frequency?: FREQUENCY;
   data: {
     timestamp: string;
     price: number;
