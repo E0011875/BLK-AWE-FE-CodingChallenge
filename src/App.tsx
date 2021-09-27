@@ -45,7 +45,7 @@ const App: React.FC = () => {
   );
   const [dataSource, setDataSource] = React.useState<Ticker[]>([
     {
-      symbol: 'IBM',
+      symbol: 'BLK',
       timeZone: '-',
       lastUpdate: NaN,
       data: [],
@@ -359,7 +359,7 @@ const App: React.FC = () => {
               }
             >
               <Input.Search
-                placeholder="Enter a symbol, e.g., NYC"
+                placeholder="Enter a symbol, e.g., BLK"
                 size="large"
                 allowClear={true}
                 enterButton={isLoading ? undefined : <PlusOutlined />}
