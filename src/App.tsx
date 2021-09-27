@@ -398,7 +398,7 @@ const App: React.FC = () => {
               options={searchResults}
               onSearch={(value: string) => searchTicker(value)}
               notFoundContent={
-                isSearchLoading ? 'Loading...' : 'No Match Found'
+                isSearchLoading ? 'Searching...' : 'No Match Found'
               }
             >
               <Input.Search
@@ -436,8 +436,8 @@ const App: React.FC = () => {
         </div>
       </div>
       <div className={styles.signature}>
-        Designed by Leslie Ho Zong Hong on 25 Sep, 2021. Powered by{' '}
-        <a href="https://www.alphavantage.co">www.alphavantage.co</a>
+        Created by Leslie Ho Zong Hong on 25 Sep, 2021. Powered by&nbsp;
+        <a href="https://www.alphavantage.co">www.alphavantage.co</a>.
       </div>
     </div>
   );
