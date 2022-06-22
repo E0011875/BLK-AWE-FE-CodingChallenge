@@ -113,7 +113,8 @@ const App: React.FC = () => {
                     return field
                       ? {
                           ...tickerFields,
-                          [field]: value,
+                          [field]:
+                            field === 'symbol' ? value.toUpperCase() : value,
                         }
                       : tickerFields;
                   },
@@ -199,6 +200,8 @@ const App: React.FC = () => {
               fetchedDataSource ||
               currentDataSource.map((ticker) => ({
                 ...ticker,
+                lastUpdate: NaN,
+                frequency,
                 dataUrl:
                   ALPHAVANTAGE_API_PREFIX +
                   new URLSearchParams({
@@ -206,7 +209,7 @@ const App: React.FC = () => {
                     function: frequencyTimeSeriesInfo[frequency].param,
                     apikey: API_KEY,
                   }).toString(),
-                frequency,
+
                 data: [],
               }))
           )
@@ -310,7 +313,8 @@ const App: React.FC = () => {
         dataIndex: 'lastUpdate',
         title: 'Last Update',
         width: 200,
-        render: (lastUpdate: number) => dayjs(lastUpdate).fromNow(),
+        render: (lastUpdate: number) =>
+          lastUpdate ? dayjs(lastUpdate).fromNow() : null,
       },
       {
         title: 'Actions',
@@ -408,9 +412,9 @@ const App: React.FC = () => {
                 enterButton={isLoading ? undefined : <PlusOutlined />}
                 loading={isLoading}
                 onPressEnter={({ currentTarget: { value } }) =>
-                  addTicker(value.toUpperCase())
+                  addTicker(value)
                 }
-                onSearch={(value) => addTicker(value.toUpperCase())}
+                onSearch={(value) => addTicker(value)}
               />
             </AutoComplete>
             <Table
